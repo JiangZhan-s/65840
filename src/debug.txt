@@ -1,0 +1,387 @@
+go build -race -o main/kvraft1d main/kvraft1d.go
+cd kvraft1 && go test -v -race -run 4B 
+=== RUN   TestBasic4B
+Test: one client (4B basic) (reliable network)...
+  ... Passed --  time  3.1s #peers 5 #RPCs  2172 #Ops  822
+--- PASS: TestBasic4B (3.69s)
+=== RUN   TestSpeed4B
+Test: one client (4B speed) (reliable network)...
+2026/03/17 20:02:17 dur 10.480855ms 33.333333ms
+2026/03/17 20:02:17 0: 164
+2026/03/17 20:02:17 1: 332
+2026/03/17 20:02:17 2: 274
+2026/03/17 20:02:17 3: 221
+2026/03/17 20:02:17 4: 9
+  ... Passed --  time 11.1s #peers 3 #RPCs  3208 #Ops 1002
+--- PASS: TestSpeed4B (11.45s)
+=== RUN   TestConcurrent4B
+Test: many clients (4B many clients) (reliable network)...
+  ... Passed --  time  3.4s #peers 5 #RPCs  3776 #Ops 1454
+--- PASS: TestConcurrent4B (3.95s)
+=== RUN   TestUnreliable4B
+Test: many clients (4B many clients) (unreliable network)...
+  ... Passed --  time  9.0s #peers 5 #RPCs  1071 #Ops  214
+--- PASS: TestUnreliable4B (9.52s)
+=== RUN   TestOnePartition4B
+Test: one client (4B progress in majority) (unreliable network)...
+  ... Passed --  time  3.7s #peers 5 #RPCs   212 #Ops    4
+Test: no progress in minority (4B) (unreliable network)...
+  ... Passed --  time  2.0s #peers 5 #RPCs   178 #Ops    7
+Test: completion after heal (4B) (unreliable network)...
+  ... Passed --  time  1.2s #peers 5 #RPCs    65 #Ops    4
+--- PASS: TestOnePartition4B (7.40s)
+=== RUN   TestManyPartitionsOneClient4B
+Test: partitions, one client (4B partitions, one client) (reliable network)...
+  ... Passed --  time 13.9s #peers 5 #RPCs  2790 #Ops  858
+--- PASS: TestManyPartitionsOneClient4B (14.59s)
+=== RUN   TestManyPartitionsManyClients4B
+Test: partitions, many clients (4B partitions, many clients (4B)) (reliable network)...
+  ... Passed --  time 13.6s #peers 5 #RPCs  4007 #Ops 1314
+--- PASS: TestManyPartitionsManyClients4B (14.20s)
+=== RUN   TestPersistOneClient4B
+Test: restarts, one client (4B restarts, one client 4B ) (reliable network)...
+  ... Passed --  time  8.4s #peers 5 #RPCs  1553 #Ops  566
+--- PASS: TestPersistOneClient4B (8.91s)
+=== RUN   TestPersistConcurrent4B
+Test: restarts, many clients (4B restarts, many clients) (reliable network)...
+  ... Passed --  time  8.1s #peers 5 #RPCs  3098 #Ops 1166
+--- PASS: TestPersistConcurrent4B (8.68s)
+=== RUN   TestPersistConcurrentUnreliable4B
+Test: restarts, many clients (4B restarts, many clients ) (unreliable network)...
+  ... Passed --  time 14.9s #peers 5 #RPCs   966 #Ops  154
+--- PASS: TestPersistConcurrentUnreliable4B (15.44s)
+=== RUN   TestPersistPartition4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (reliable network)...
+  ... Passed --  time 21.8s #peers 5 #RPCs  3479 #Ops 1014
+--- PASS: TestPersistPartition4B (22.38s)
+=== RUN   TestPersistPartitionUnreliable4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (unreliable network)...
+  ... Passed --  time 36.0s #peers 5 #RPCs  2048 #Ops  102
+--- PASS: TestPersistPartitionUnreliable4B (36.56s)
+=== RUN   TestPersistPartitionUnreliableLinearizable4B
+Test: restarts, partitions, random keys, many clients (4B restarts, partitions, random keys, many clients) (unreliable network)...
+  ... Passed --  time 33.6s #peers 7 #RPCs  4235 #Ops  352
+--- PASS: TestPersistPartitionUnreliableLinearizable4B (34.35s)
+PASS
+ok  	6.5840/kvraft1	192.145s
+go build -race -o main/kvraft1d main/kvraft1d.go
+cd kvraft1 && go test -v -race -run 4B 
+=== RUN   TestBasic4B
+Test: one client (4B basic) (reliable network)...
+  ... Passed --  time  3.1s #peers 5 #RPCs  2270 #Ops  866
+--- PASS: TestBasic4B (3.61s)
+=== RUN   TestSpeed4B
+Test: one client (4B speed) (reliable network)...
+2026/03/17 20:05:31 dur 10.314512ms 33.333333ms
+2026/03/17 20:05:31 0: 177
+2026/03/17 20:05:31 1: 330
+2026/03/17 20:05:31 2: 274
+2026/03/17 20:05:31 3: 219
+  ... Passed --  time 11.0s #peers 3 #RPCs  3202 #Ops 1002
+--- PASS: TestSpeed4B (11.28s)
+=== RUN   TestConcurrent4B
+Test: many clients (4B many clients) (reliable network)...
+  ... Passed --  time  3.4s #peers 5 #RPCs  3854 #Ops 1482
+--- PASS: TestConcurrent4B (4.04s)
+=== RUN   TestUnreliable4B
+Test: many clients (4B many clients) (unreliable network)...
+  ... Passed --  time  6.1s #peers 5 #RPCs   865 #Ops  194
+--- PASS: TestUnreliable4B (6.73s)
+=== RUN   TestOnePartition4B
+Test: one client (4B progress in majority) (unreliable network)...
+  ... Passed --  time  4.4s #peers 5 #RPCs   270 #Ops    5
+Test: no progress in minority (4B) (unreliable network)...
+  ... Passed --  time  2.1s #peers 5 #RPCs   182 #Ops    7
+Test: completion after heal (4B) (unreliable network)...
+  ... Passed --  time  2.0s #peers 5 #RPCs    94 #Ops    4
+--- PASS: TestOnePartition4B (9.07s)
+=== RUN   TestManyPartitionsOneClient4B
+Test: partitions, one client (4B partitions, one client) (reliable network)...
+  ... Passed --  time 18.1s #peers 5 #RPCs  2829 #Ops  774
+--- PASS: TestManyPartitionsOneClient4B (18.70s)
+=== RUN   TestManyPartitionsManyClients4B
+Test: partitions, many clients (4B partitions, many clients (4B)) (reliable network)...
+  ... Passed --  time 11.7s #peers 5 #RPCs  4348 #Ops 1518
+--- PASS: TestManyPartitionsManyClients4B (12.46s)
+=== RUN   TestPersistOneClient4B
+Test: restarts, one client (4B restarts, one client 4B ) (reliable network)...
+  ... Passed --  time  7.8s #peers 5 #RPCs  1674 #Ops  622
+--- PASS: TestPersistOneClient4B (8.39s)
+=== RUN   TestPersistConcurrent4B
+Test: restarts, many clients (4B restarts, many clients) (reliable network)...
+  ... Passed --  time  8.2s #peers 5 #RPCs  2994 #Ops 1122
+--- PASS: TestPersistConcurrent4B (8.69s)
+=== RUN   TestPersistConcurrentUnreliable4B
+Test: restarts, many clients (4B restarts, many clients ) (unreliable network)...
+  ... Passed --  time 12.9s #peers 5 #RPCs   868 #Ops  154
+--- PASS: TestPersistConcurrentUnreliable4B (13.42s)
+=== RUN   TestPersistPartition4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (reliable network)...
+  ... Passed --  time 18.6s #peers 5 #RPCs  3389 #Ops 1070
+--- PASS: TestPersistPartition4B (19.10s)
+=== RUN   TestPersistPartitionUnreliable4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (unreliable network)...
+  ... Passed --  time 23.7s #peers 5 #RPCs  1576 #Ops  158
+--- PASS: TestPersistPartitionUnreliable4B (24.26s)
+=== RUN   TestPersistPartitionUnreliableLinearizable4B
+Test: restarts, partitions, random keys, many clients (4B restarts, partitions, random keys, many clients) (unreliable network)...
+  ... Passed --  time 26.9s #peers 7 #RPCs  3262 #Ops  320
+--- PASS: TestPersistPartitionUnreliableLinearizable4B (27.73s)
+PASS
+ok  	6.5840/kvraft1	168.502s
+go build -race -o main/kvraft1d main/kvraft1d.go
+cd kvraft1 && go test -v -race -run 4B 
+=== RUN   TestBasic4B
+Test: one client (4B basic) (reliable network)...
+  ... Passed --  time  3.2s #peers 5 #RPCs  2106 #Ops  794
+--- PASS: TestBasic4B (3.80s)
+=== RUN   TestSpeed4B
+Test: one client (4B speed) (reliable network)...
+2026/03/17 20:08:34 dur 10.594628ms 33.333333ms
+2026/03/17 20:08:34 0: 158
+2026/03/17 20:08:34 1: 317
+2026/03/17 20:08:34 2: 284
+2026/03/17 20:08:34 3: 236
+2026/03/17 20:08:34 4: 5
+  ... Passed --  time 11.4s #peers 3 #RPCs  3207 #Ops 1002
+--- PASS: TestSpeed4B (11.71s)
+=== RUN   TestConcurrent4B
+Test: many clients (4B many clients) (reliable network)...
+  ... Passed --  time  3.4s #peers 5 #RPCs  3756 #Ops 1446
+--- PASS: TestConcurrent4B (3.90s)
+=== RUN   TestUnreliable4B
+Test: many clients (4B many clients) (unreliable network)...
+  ... Passed --  time  9.6s #peers 5 #RPCs  1042 #Ops  190
+--- PASS: TestUnreliable4B (10.11s)
+=== RUN   TestOnePartition4B
+Test: one client (4B progress in majority) (unreliable network)...
+  ... Passed --  time  3.5s #peers 5 #RPCs   225 #Ops    5
+Test: no progress in minority (4B) (unreliable network)...
+  ... Passed --  time  1.1s #peers 5 #RPCs   111 #Ops    7
+Test: completion after heal (4B) (unreliable network)...
+  ... Passed --  time  1.5s #peers 5 #RPCs    82 #Ops    4
+--- PASS: TestOnePartition4B (6.79s)
+=== RUN   TestManyPartitionsOneClient4B
+Test: partitions, one client (4B partitions, one client) (reliable network)...
+  ... Passed --  time  9.6s #peers 5 #RPCs  2558 #Ops  874
+--- PASS: TestManyPartitionsOneClient4B (10.11s)
+=== RUN   TestManyPartitionsManyClients4B
+Test: partitions, many clients (4B partitions, many clients (4B)) (reliable network)...
+  ... Passed --  time 13.7s #peers 5 #RPCs  4174 #Ops 1370
+--- PASS: TestManyPartitionsManyClients4B (14.25s)
+=== RUN   TestPersistOneClient4B
+Test: restarts, one client (4B restarts, one client 4B ) (reliable network)...
+  ... Passed --  time  8.2s #peers 5 #RPCs  1243 #Ops  442
+--- PASS: TestPersistOneClient4B (8.99s)
+=== RUN   TestPersistConcurrent4B
+Test: restarts, many clients (4B restarts, many clients) (reliable network)...
+  ... Passed --  time  8.7s #peers 5 #RPCs  2872 #Ops 1058
+--- PASS: TestPersistConcurrent4B (9.39s)
+=== RUN   TestPersistConcurrentUnreliable4B
+Test: restarts, many clients (4B restarts, many clients ) (unreliable network)...
+  ... Passed --  time 13.5s #peers 5 #RPCs   813 #Ops  118
+--- PASS: TestPersistConcurrentUnreliable4B (14.08s)
+=== RUN   TestPersistPartition4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (reliable network)...
+  ... Passed --  time 14.1s #peers 5 #RPCs  2884 #Ops  986
+--- PASS: TestPersistPartition4B (14.59s)
+=== RUN   TestPersistPartitionUnreliable4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (unreliable network)...
+  ... Passed --  time 21.9s #peers 5 #RPCs  1281 #Ops  170
+--- PASS: TestPersistPartitionUnreliable4B (22.40s)
+=== RUN   TestPersistPartitionUnreliableLinearizable4B
+Test: restarts, partitions, random keys, many clients (4B restarts, partitions, random keys, many clients) (unreliable network)...
+  ... Passed --  time 24.5s #peers 7 #RPCs  2951 #Ops  256
+--- PASS: TestPersistPartitionUnreliableLinearizable4B (25.34s)
+PASS
+ok  	6.5840/kvraft1	156.461s
+go build -race -o main/kvraft1d main/kvraft1d.go
+cd kvraft1 && go test -v -race -run 4B 
+=== RUN   TestBasic4B
+Test: one client (4B basic) (reliable network)...
+  ... Passed --  time  3.2s #peers 5 #RPCs  2032 #Ops  766
+--- PASS: TestBasic4B (3.71s)
+=== RUN   TestSpeed4B
+Test: one client (4B speed) (reliable network)...
+2026/03/17 20:11:25 dur 10.303159ms 33.333333ms
+2026/03/17 20:11:25 0: 184
+2026/03/17 20:11:25 1: 323
+2026/03/17 20:11:25 2: 265
+2026/03/17 20:11:25 3: 226
+2026/03/17 20:11:25 4: 2
+  ... Passed --  time 11.0s #peers 3 #RPCs  3203 #Ops 1002
+--- PASS: TestSpeed4B (11.37s)
+=== RUN   TestConcurrent4B
+Test: many clients (4B many clients) (reliable network)...
+  ... Passed --  time  2.3s #peers 5 #RPCs  2845 #Ops 1096
+--- FAIL: TestConcurrent4B (2.92s)
+panic: interface conversion: interface {} is nil, not models.KvInput [recovered]
+	panic: interface conversion: interface {} is nil, not models.KvInput
+
+goroutine 14316 [running]:
+testing.tRunner.func1.2({0x8427a0, 0xc0001e37a0})
+	/usr/local/go/src/testing/testing.go:1632 +0x3fc
+testing.tRunner.func1()
+	/usr/local/go/src/testing/testing.go:1635 +0x6b6
+panic({0x8427a0?, 0xc0001e37a0?})
+	/usr/local/go/src/runtime/panic.go:785 +0x132
+6.5840/models1.init.func4({0x0, 0x0}, {0x862860, 0xc000791b00})
+	/home/wuyi/6.5840/src/models1/kv.go:71 +0x4dd
+github.com/anishathalye/porcupine.computeVisualizationData({0x8ad8b8, 0x8ad8a8, 0x8ad8c0, 0x8ad8c8, 0x8ad8b0, 0x8ad8d0, 0x8ad898}, {{0xc0006c60c0, 0x1, 0x1}, ...})
+	/home/wuyi/Applications/Go/pkg/mod/github.com/anishathalye/porcupine@v1.0.3/visualization.go:157 +0x103f
+github.com/anishathalye/porcupine.Visualize({0x8ad8b8, 0x0, 0x8ad8c0, 0x8ad8c8, 0x0, 0x8ad8d0, 0x0}, {{0xc0006c60c0, 0x1, 0x1}, ...}, ...)
+	/home/wuyi/Applications/Go/pkg/mod/github.com/anishathalye/porcupine@v1.0.3/visualization.go:231 +0x132
+6.5840/kvtest1.checkPorcupine(0xc0003989c0, 0xc000630e80, 0x3b9aca00)
+	/home/wuyi/6.5840/src/kvtest1/porcupine.go:112 +0xfe6
+6.5840/kvtest1.(*Test).CheckPorcupineT(...)
+	/home/wuyi/6.5840/src/kvtest1/porcupine.go:192
+6.5840/kvtest1.(*Test).CheckPorcupine(...)
+	/home/wuyi/6.5840/src/kvtest1/porcupine.go:185
+6.5840/kvraft1.(*Test).GenericTest(0xc000162230)
+	/home/wuyi/6.5840/src/kvraft1/kvraft_test.go:70 +0x612
+6.5840/kvraft1.TestConcurrent4B(0xc0003989c0)
+	/home/wuyi/6.5840/src/kvraft1/kvraft_test.go:181 +0x94
+testing.tRunner(0xc0003989c0, 0x8acd48)
+	/usr/local/go/src/testing/testing.go:1690 +0x227
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:1743 +0x826
+exit status 2
+FAIL	6.5840/kvraft1	18.014s
+go build -race -o main/kvraft1d main/kvraft1d.go
+cd kvraft1 && go test -v -race -run 4B 
+=== RUN   TestBasic4B
+Test: one client (4B basic) (reliable network)...
+  ... Passed --  time  3.1s #peers 5 #RPCs  2258 #Ops  858
+--- PASS: TestBasic4B (3.70s)
+=== RUN   TestSpeed4B
+Test: one client (4B speed) (reliable network)...
+2026/03/17 20:12:02 dur 10.282228ms 33.333333ms
+2026/03/17 20:12:02 0: 158
+2026/03/17 20:12:02 1: 360
+2026/03/17 20:12:02 2: 261
+2026/03/17 20:12:02 3: 217
+2026/03/17 20:12:02 4: 4
+  ... Passed --  time 10.9s #peers 3 #RPCs  3204 #Ops 1002
+--- PASS: TestSpeed4B (11.25s)
+=== RUN   TestConcurrent4B
+Test: many clients (4B many clients) (reliable network)...
+  ... Passed --  time  3.5s #peers 5 #RPCs  3636 #Ops 1390
+--- PASS: TestConcurrent4B (4.08s)
+=== RUN   TestUnreliable4B
+Test: many clients (4B many clients) (unreliable network)...
+  ... Passed --  time  6.5s #peers 5 #RPCs   741 #Ops  134
+--- PASS: TestUnreliable4B (7.04s)
+=== RUN   TestOnePartition4B
+Test: one client (4B progress in majority) (unreliable network)...
+  ... Passed --  time  1.9s #peers 5 #RPCs   118 #Ops    4
+Test: no progress in minority (4B) (unreliable network)...
+  ... Passed --  time  1.1s #peers 5 #RPCs   101 #Ops    7
+Test: completion after heal (4B) (unreliable network)...
+  ... Passed --  time  1.3s #peers 5 #RPCs    81 #Ops    4
+--- PASS: TestOnePartition4B (4.87s)
+=== RUN   TestManyPartitionsOneClient4B
+Test: partitions, one client (4B partitions, one client) (reliable network)...
+  ... Passed --  time  9.2s #peers 5 #RPCs  2536 #Ops  870
+--- PASS: TestManyPartitionsOneClient4B (9.78s)
+=== RUN   TestManyPartitionsManyClients4B
+Test: partitions, many clients (4B partitions, many clients (4B)) (reliable network)...
+  ... Passed --  time  4.2s #peers 5 #RPCs  2937 #Ops 1104
+--- FAIL: TestManyPartitionsManyClients4B (4.86s)
+panic: interface conversion: interface {} is nil, not models.KvInput [recovered]
+	panic: interface conversion: interface {} is nil, not models.KvInput
+
+goroutine 35283 [running]:
+testing.tRunner.func1.2({0x8427a0, 0xc000568c90})
+	/usr/local/go/src/testing/testing.go:1632 +0x3fc
+testing.tRunner.func1()
+	/usr/local/go/src/testing/testing.go:1635 +0x6b6
+panic({0x8427a0?, 0xc000568c90?})
+	/usr/local/go/src/runtime/panic.go:785 +0x132
+6.5840/models1.init.func4({0x0, 0x0}, {0x862860, 0xc000647e30})
+	/home/wuyi/6.5840/src/models1/kv.go:71 +0x4dd
+github.com/anishathalye/porcupine.computeVisualizationData({0x8ad8b8, 0x8ad8a8, 0x8ad8c0, 0x8ad8c8, 0x8ad8b0, 0x8ad8d0, 0x8ad898}, {{0xc00056de48, 0x1, 0x1}, ...})
+	/home/wuyi/Applications/Go/pkg/mod/github.com/anishathalye/porcupine@v1.0.3/visualization.go:157 +0x103f
+github.com/anishathalye/porcupine.Visualize({0x8ad8b8, 0x0, 0x8ad8c0, 0x8ad8c8, 0x0, 0x8ad8d0, 0x0}, {{0xc00056de48, 0x1, 0x1}, ...}, ...)
+	/home/wuyi/Applications/Go/pkg/mod/github.com/anishathalye/porcupine@v1.0.3/visualization.go:231 +0x132
+6.5840/kvtest1.checkPorcupine(0xc0003ac4e0, 0xc0004326e0, 0x3b9aca00)
+	/home/wuyi/6.5840/src/kvtest1/porcupine.go:121 +0xfe6
+6.5840/kvtest1.(*Test).CheckPorcupineT(...)
+	/home/wuyi/6.5840/src/kvtest1/porcupine.go:201
+6.5840/kvtest1.(*Test).CheckPorcupine(...)
+	/home/wuyi/6.5840/src/kvtest1/porcupine.go:194
+6.5840/kvraft1.(*Test).GenericTest(0xc0000160f0)
+	/home/wuyi/6.5840/src/kvraft1/kvraft_test.go:70 +0x612
+6.5840/kvraft1.TestManyPartitionsManyClients4B(0xc0003ac4e0)
+	/home/wuyi/6.5840/src/kvraft1/kvraft_test.go:296 +0x94
+testing.tRunner(0xc0003ac4e0, 0x8acd50)
+	/usr/local/go/src/testing/testing.go:1690 +0x227
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:1743 +0x826
+exit status 2
+FAIL	6.5840/kvraft1	45.595s
+go build -race -o main/kvraft1d main/kvraft1d.go
+cd kvraft1 && go test -v -race -run 4B 
+=== RUN   TestBasic4B
+Test: one client (4B basic) (reliable network)...
+  ... Passed --  time  3.0s #peers 5 #RPCs  2258 #Ops  858
+--- PASS: TestBasic4B (3.59s)
+=== RUN   TestSpeed4B
+Test: one client (4B speed) (reliable network)...
+2026/03/17 20:14:22 dur 10.308417ms 33.333333ms
+2026/03/17 20:14:22 0: 185
+2026/03/17 20:14:22 1: 335
+2026/03/17 20:14:22 2: 251
+2026/03/17 20:14:22 3: 228
+2026/03/17 20:14:22 4: 1
+  ... Passed --  time 11.3s #peers 3 #RPCs  3211 #Ops 1002
+--- PASS: TestSpeed4B (11.58s)
+=== RUN   TestConcurrent4B
+Test: many clients (4B many clients) (reliable network)...
+  ... Passed --  time  3.5s #peers 5 #RPCs  3736 #Ops 1438
+--- PASS: TestConcurrent4B (4.02s)
+=== RUN   TestUnreliable4B
+Test: many clients (4B many clients) (unreliable network)...
+  ... Passed --  time 10.1s #peers 5 #RPCs  1143 #Ops  206
+--- PASS: TestUnreliable4B (10.60s)
+=== RUN   TestOnePartition4B
+Test: one client (4B progress in majority) (unreliable network)...
+  ... Passed --  time  5.1s #peers 5 #RPCs   343 #Ops    4
+Test: no progress in minority (4B) (unreliable network)...
+  ... Passed --  time  1.1s #peers 5 #RPCs   110 #Ops    7
+Test: completion after heal (4B) (unreliable network)...
+  ... Passed --  time  1.4s #peers 5 #RPCs    79 #Ops    4
+--- PASS: TestOnePartition4B (8.15s)
+=== RUN   TestManyPartitionsOneClient4B
+Test: partitions, one client (4B partitions, one client) (reliable network)...
+  ... Passed --  time  9.4s #peers 5 #RPCs  2502 #Ops  850
+--- PASS: TestManyPartitionsOneClient4B (9.98s)
+=== RUN   TestManyPartitionsManyClients4B
+Test: partitions, many clients (4B partitions, many clients (4B)) (reliable network)...
+  ... Passed --  time 16.0s #peers 5 #RPCs  4254 #Ops 1342
+--- PASS: TestManyPartitionsManyClients4B (16.50s)
+=== RUN   TestPersistOneClient4B
+Test: restarts, one client (4B restarts, one client 4B ) (reliable network)...
+  ... Passed --  time  7.8s #peers 5 #RPCs  1542 #Ops  570
+--- PASS: TestPersistOneClient4B (8.32s)
+=== RUN   TestPersistConcurrent4B
+Test: restarts, many clients (4B restarts, many clients) (reliable network)...
+  ... Passed --  time  8.2s #peers 5 #RPCs  2938 #Ops 1102
+--- PASS: TestPersistConcurrent4B (8.82s)
+=== RUN   TestPersistConcurrentUnreliable4B
+Test: restarts, many clients (4B restarts, many clients ) (unreliable network)...
+  ... Passed --  time 13.1s #peers 5 #RPCs   945 #Ops  186
+--- PASS: TestPersistConcurrentUnreliable4B (13.77s)
+=== RUN   TestPersistPartition4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (reliable network)...
+  ... Passed --  time 15.3s #peers 5 #RPCs  3238 #Ops 1034
+--- PASS: TestPersistPartition4B (15.85s)
+=== RUN   TestPersistPartitionUnreliable4B
+Test: restarts, partitions, many clients (4B restarts, partitions, many clients) (unreliable network)...
+  ... Passed --  time 26.0s #peers 5 #RPCs  1611 #Ops  134
+--- PASS: TestPersistPartitionUnreliable4B (26.56s)
+=== RUN   TestPersistPartitionUnreliableLinearizable4B
+Test: restarts, partitions, random keys, many clients (4B restarts, partitions, random keys, many clients) (unreliable network)...
+  ... Passed --  time 35.2s #peers 7 #RPCs  3636 #Ops  264
+--- PASS: TestPersistPartitionUnreliableLinearizable4B (35.91s)
+PASS
+ok  	6.5840/kvraft1	174.673s

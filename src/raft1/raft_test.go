@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"6.5840/tester1"
+	tester "6.5840/tester1"
 )
 
 // The tester generously allows solutions to complete elections in one second
@@ -622,6 +622,7 @@ func TestCount3B(t *testing.T) {
 	leader := ts.checkOneLeader()
 
 	total1 := rpcs()
+	fmt.Println("totalRpcs", total1)
 
 	if total1 > 30 || total1 < 1 {
 		text := fmt.Sprintf("too many or few RPCs (%v) to elect initial leader", total1)

@@ -10,8 +10,8 @@ import (
 	"github.com/anishathalye/porcupine"
 
 	"6.5840/kvsrv1/rpc"
-	"6.5840/models1"
-	"6.5840/tester1"
+	models "6.5840/models1"
+	tester "6.5840/tester1"
 )
 
 const linearizabilityCheckTimeout = 1 * time.Second
@@ -44,13 +44,19 @@ func (log *OpLog) Read() []porcupine.Operation {
 // to make sure timestamps use the monotonic clock, instead of computing
 // absolute timestamps with `time.Now().UnixNano()` (which uses the wall
 // clock), we measure time relative to `t0` using `time.Since(t0)`, which uses
-// the monotonic clock
-var t0 = time.Unix(0, 0)
+// the monotonic clock.
+// var t0 = time.Unix(0, 0)
+
+var t0 = time.Now()
 
 func Get(cfg *tester.Config, ck IKVClerk, key string, log *OpLog, cli int) (string, rpc.Tversion, rpc.Err) {
 	start := int64(time.Since(t0))
 	val, ver, err := ck.Get(key)
 	end := int64(time.Since(t0))
+	if start > end {
+		fmt.Println("t0", t0, "start", start, "end", end)
+		fmt.Println("时间倒退了！")
+	}
 	cfg.OpInc()
 	if log != nil {
 		log.Append(porcupine.Operation{
@@ -68,6 +74,10 @@ func Put(cfg *tester.Config, ck IKVClerk, key string, value string, version rpc.
 	start := int64(time.Since(t0))
 	err := ck.Put(key, value, version)
 	end := int64(time.Since(t0))
+	if start > end {
+		fmt.Println("t0", t0, "start", start, "end", end)
+		fmt.Println("时间倒退了！")
+	}
 	cfg.OpInc()
 	if log != nil {
 		log.Append(porcupine.Operation{
@@ -86,7 +96,14 @@ func Put(cfg *tester.Config, ck IKVClerk, key string, value string, version rpc.
 func checkPorcupine(t *testing.T, opLog *OpLog, nsec time.Duration) {
 	enabled := os.Getenv("VIS_ENABLE")
 	fpath := os.Getenv("VIS_FILE")
-	res, info := porcupine.CheckOperationsVerbose(models.KvModel, opLog.Read(), nsec)
+	history := opLog.Read()
+
+	// 强制修复：如果发现任何 op 的 Input 或 Output 里的关键字段是空的，
+	// 给它一个默认值，防止 Porcupine 内部类型转换崩溃。
+
+	res, info := porcupine.CheckOperationsVerbose(models.KvModel, history, nsec)
+	// res, info := porcupine.CheckOperationsVerbose(models.KvModel, opLog.Read(), nsec)
+
 	if res == porcupine.Illegal {
 		var file *os.File
 		var err error

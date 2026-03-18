@@ -1,27 +1,27 @@
 package raftapi
 
-// The Raft interface
+// Raft 接口
 type Raft interface {
-	// Start agreement on a new log entry, and return the log index
-	// for that entry, the term, and whether the peer is the leader.
+	// 启动对新日志条目的共识达成，并返回该条目的日志索引、
+	// 任期，以及该节点是否为领导者。
 	Start(command interface{}) (int, int, bool)
 
-	// Ask a Raft for its current term, and whether it thinks it is
-	// leader
+	// 询问 Raft 节点的当前任期，以及它是否认为自己是
+	// 领导者
 	GetState() (int, bool)
 
-	// For Snaphots (3D)
+	// 用于快照 (3D)
 	Snapshot(index int, snapshot []byte)
 	PersistBytes() int
 }
 
-// As each Raft peer becomes aware that successive log entries are
-// committed, the peer should send an ApplyMsg to the server (or
-// tester), via the applyCh passed to Make(). Set CommandValid to true
-// to indicate that the ApplyMsg contains a newly committed log entry.
+// 当每个 Raft 节点意识到连续的日志条目被提交时，该节点
+// 应该通过传递给 Make() 的 applyCh 向服务（或测试程序）
+// 发送一个 ApplyMsg。将 CommandValid 设置为 true
+// 以表明该 ApplyMsg 包含一个新提交的日志条目。
 //
-// You'll find the Snapshot fields useful later in the lab.
-// Exactly one of CommandValid and SnapshotValid should be true.
+// 你会在稍后的实验中发现 Snapshot 相关的字段很有用。
+// CommandValid 和 SnapshotValid 中必须且只能有一个为 true。
 type ApplyMsg struct {
 	CommandValid bool
 	Command      interface{}
