@@ -75,7 +75,7 @@ func MakeRSM(servers []*labrpc.ClientEnd, me int, persister *tester.Persister, m
 		rsm.rf = raft.Make(servers, me, persister, rsm.applyCh)
 	}
 	if sn := persister.ReadSnapshot(); len(sn) > 0 {
-		fmt.Println("HUIfu")
+		// fmt.Println("HUIfu")
 		rsm.sm.Restore(sn)
 	}
 	go rsm.reader()
@@ -190,6 +190,7 @@ func (rsm *RSM) reader() {
 
 		if msg.SnapshotValid {
 			rsm.sm.Restore(msg.Snapshot)
+			// fmt.Println("Leader")
 			continue
 		}
 		if !msg.CommandValid {

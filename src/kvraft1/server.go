@@ -107,6 +107,7 @@ func (kv *KVServer) Restore(data []byte) {
 	if d.Decode(&kv.data) != nil {
 		log.Fatalf("%v couldn't decode Kvdata", kv.me)
 	}
+	// fmt.Println(kv.me, kv.data)
 }
 
 func (kv *KVServer) Get(args *rpc.GetArgs, reply *rpc.GetReply) {
