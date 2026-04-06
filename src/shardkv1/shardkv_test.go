@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"6.5840/kvsrv1/rpc"
-	"6.5840/kvtest1"
+	kvtest "6.5840/kvtest1"
 	"6.5840/shardkv1/shardcfg"
 	"6.5840/shardkv1/shardctrler"
-	"6.5840/tester1"
+	tester "6.5840/tester1"
 )
 
 const (
@@ -18,29 +18,29 @@ const (
 	NKEYS = 5 * shardcfg.NShards
 )
 
-// Test shard controller's Init and Query with a key/value server from
-// kvsrv1 lab.
+// 使用 kvsrv1 实验中的 key/value 服务器，
+// 测试 shard controller 的 Init 和 Query。
 func TestInitQuery5A(t *testing.T) {
 
-	// MakeTest starts your lab2 key/value server using
-	// `kvsrv.StartKVServer`.
+	// MakeTest 会通过 `kvsrv.StartKVServer`
+	// 启动你的 lab2 key/value 服务器。
 	ts := MakeTest(t, "Test (5A): Init and Query ...", true)
 	defer ts.Cleanup()
 
-	// Make a shard controller
+	// 创建一个 shard controller
 	sck := shardctrler.MakeShardCtrler(ts.Config.MakeClient())
 
-	// Make an empty shard configuration
+	// 创建一个空的 shard 配置
 	scfg := shardcfg.MakeShardConfig()
 
-	// Compute a new shard configuration as if `shardcfg.Gid1` joins  the cluster,
-	// assigning all shards to `shardcfg.Gid1`.
+	// 计算一个新的 shard 配置，模拟 `shardcfg.Gid1` 加入集群，
+	// 并把所有 shard 分配给 `shardcfg.Gid1`。
 	scfg.JoinBalance(map[tester.Tgid][]string{shardcfg.Gid1: []string{"xxx"}})
 
-	// Invoke the controller to initialize to store the first configuration
+	// 调用 controller 初始化并存储第一版配置
 	sck.InitConfig(scfg)
 
-	// Read the initial configuration and check it
+	// 读取初始配置并检查
 	cfg := sck.Query()
 	if cfg.Num != 1 || cfg.Shards[0] != shardcfg.Gid1 {
 		ts.t.Fatalf("Static wrong %v", cfg)
@@ -48,36 +48,34 @@ func TestInitQuery5A(t *testing.T) {
 	cfg.CheckConfig(t, []tester.Tgid{shardcfg.Gid1})
 }
 
-// Test shardkv clerk's Get/Put with 1 shardgrp (without reconfiguration)
+// 测试 shardkv clerk 在 1 个 shardgrp 下的 Get/Put（无重配置）
 func TestStaticOneShardGroup5A(t *testing.T) {
 	ts := MakeTest(t, "Test (5A): one shard group ...", true)
 	defer ts.Cleanup()
 
-	// The tester's setupKVService() sets up a kvsrv for the
-	// controller to store configurations and calls the controller's
-	// Init() method to create the first configuration with 1
-	// shardgrp.
+	// tester 的 setupKVService() 会为 controller 建立一个 kvsrv
+	// 用于存储配置，并调用 controller 的 Init() 方法，
+	// 创建包含 1 个 shardgrp 的第一版配置。
 	ts.setupKVService()
 
-	ck := ts.MakeClerk()               // make a shardkv clerk
-	ka, va := ts.SpreadPuts(ck, NKEYS) // do some puts
+	ck := ts.MakeClerk()               // 创建一个 shardkv clerk
+	ka, va := ts.SpreadPuts(ck, NKEYS) // 执行一些 put
 	n := len(ka)
 	for i := 0; i < n; i++ {
-		ts.CheckGet(ck, ka[i], va[i], rpc.Tversion(1)) // check the puts
+		ts.CheckGet(ck, ka[i], va[i], rpc.Tversion(1)) // 检查 put 结果
 	}
 
-	// Shutdown raft leader of shardgrp and check that keys are
-	// still available
+	// 关闭 shardgrp 的 raft leader，并检查 key 仍然可用
 	ts.shutdownLeader(ck.(*kvtest.TestClerk), shardcfg.Gid1)
 
 	for i := 0; i < n; i++ {
-		ts.CheckGet(ck, ka[i], va[i], rpc.Tversion(1)) // check the puts
+		ts.CheckGet(ck, ka[i], va[i], rpc.Tversion(1)) // 检查 put 结果
 	}
 }
 
-// test shardctrler's join, which adds a new group Gid2 and must move
-// shards to the new group and the old group should reject Get/Puts on
-// shards that moved.
+// 测试 shardctrler 的 join：加入新 group Gid2 后，
+// 必须把部分 shard 迁到新 group，旧 group 应拒绝
+// 对已迁移 shard 的 Get/Put。
 func TestJoinBasic5A(t *testing.T) {
 	ts := MakeTest(t, "Test (5A): a group joins...", true)
 	defer ts.Cleanup()
@@ -116,7 +114,7 @@ func TestJoinBasic5A(t *testing.T) {
 	}
 }
 
-// test shardgrps delete moved shards
+// 测试 shardgrp 删除已迁移的 shard
 func TestDeleteBasic5A(t *testing.T) {
 	const (
 		MAXRAFTSTATE = 1000
@@ -139,7 +137,7 @@ func TestDeleteBasic5A(t *testing.T) {
 		ts.t.Fatalf("TestDeleteBasic5A: joinGroups failed")
 	}
 
-	// push more Get's through so that all peers snapshot
+	// 再执行更多 Get，使所有副本都进行快照
 	for j := 0; j < 5; j++ {
 		for i := 0; i < len(ka); i++ {
 			ts.CheckGet(ck, ka[i], va[i], rpc.Tversion(1))
@@ -153,7 +151,7 @@ func TestDeleteBasic5A(t *testing.T) {
 	}
 }
 
-// test shardctrler's leave
+// 测试 shardctrler 的 leave
 func TestJoinLeaveBasic5A(t *testing.T) {
 	ts := MakeTest(t, "Test (5A): basic groups join/leave ...", true)
 	defer ts.Cleanup()
@@ -185,10 +183,10 @@ func TestJoinLeaveBasic5A(t *testing.T) {
 		ts.CheckGet(ck, ka[i], va[i], rpc.Tversion(1))
 	}
 
-	// bring the crashed shard/group back to life.
+	// 将崩溃的 shard/group 恢复运行。
 	ts.Group(shardcfg.Gid1).StartServers()
 
-	// Rejoin
+	// 重新加入
 	ts.join(sck, shardcfg.Gid1, ts.Group(shardcfg.Gid1).SrvNames())
 
 	for i := 0; i < len(ka); i++ {
@@ -198,7 +196,7 @@ func TestJoinLeaveBasic5A(t *testing.T) {
 	ts.checkShutdownSharding(gid2, ka, va)
 }
 
-// test many groups joining and leaving, reliable or unreliable
+// 测试多个 group 反复 join/leave（可靠或不可靠网络）
 func joinLeave5A(t *testing.T, reliable bool, part string) {
 	ts := MakeTest(t, "Test (5A): many groups join/leave ...", reliable)
 	defer ts.Cleanup()
@@ -233,7 +231,7 @@ func TestManyJoinLeaveUnreliable5A(t *testing.T) {
 	joinLeave5A(t, false, "Test (5A): many groups join/leave unreliable...")
 }
 
-// Test recovery from complete shutdown
+// 测试完全停机后的恢复
 func TestShutdown5A(t *testing.T) {
 	const NJOIN = 2
 	const NGRP = 2 + NJOIN
@@ -269,8 +267,7 @@ func TestShutdown5A(t *testing.T) {
 	}
 }
 
-// Test that Gets for keys at groups that are alive
-// return
+// 测试：对于仍存活 group 上的 key，Get 能返回
 func TestProgressShutdown5A(t *testing.T) {
 	const (
 		NJOIN = 4
@@ -322,7 +319,7 @@ func TestProgressShutdown5A(t *testing.T) {
 	}
 }
 
-// Test that Gets from a non-moving shard return quickly
+// 测试：来自未迁移 shard 的 Get 能快速返回
 func TestProgressJoin5A(t *testing.T) {
 	const (
 		NJOIN = 4
@@ -353,8 +350,7 @@ func TestProgressJoin5A(t *testing.T) {
 		t.Fatalf("JoinBalance failed")
 	}
 
-	// compute which shards don't move and which groups are involved
-	// in moving shards
+	// 计算哪些 shard 不会移动，以及哪些 group 参与了 shard 迁移
 	stable := make(map[shardcfg.Tshid]bool)
 	participating := make(map[tester.Tgid]bool)
 	for i, g := range newcfg1.Shards {
@@ -388,8 +384,8 @@ func TestProgressJoin5A(t *testing.T) {
 
 	ch1 := make(chan int)
 	go func() {
-		// get the keys that are on groups that are involved in the
-		// join but not in the shards that are moving
+		// 获取这些 key：它们位于参与 join 的 group 上，
+		// 但不在正在迁移的 shard 中
 		t := time.Now().Add(NSEC * time.Second)
 		nget := 0
 		for time.Now().Before(t) {
@@ -421,8 +417,8 @@ func TestProgressJoin5A(t *testing.T) {
 	ch0 <- rpc.OK
 }
 
-// Test linearizability with groups joining/leaving and `nclnt`
-// concurrent clerks put/get's in `unreliable` net.
+// 测试线性一致性：group 在 join/leave 的同时，
+// `nclnt` 个并发 clerk 在不可靠网络中执行 put/get。
 func concurrentClerk(t *testing.T, nclnt int, reliable bool, part string) {
 	const (
 		NSEC = 20
@@ -458,30 +454,30 @@ func concurrentClerk(t *testing.T, nclnt int, reliable bool, part string) {
 	ts.CheckPorcupine()
 }
 
-// Test linearizability with groups joining/leaving and 1 concurrent clerks put/get's
+// 测试线性一致性：group join/leave + 1 个并发 clerk put/get
 func TestOneConcurrentClerkReliable5A(t *testing.T) {
 	concurrentClerk(t, 1, true, "Test (5A): one concurrent clerk reliable...")
 }
 
-// Test linearizability with groups joining/leaving and many concurrent clerks put/get's
+// 测试线性一致性：group join/leave + 多个并发 clerk put/get
 func TestManyConcurrentClerkReliable5A(t *testing.T) {
 	const NCLNT = 10
 	concurrentClerk(t, NCLNT, true, "Test (5A): many concurrent clerks reliable...")
 }
 
-// Test linearizability with groups joining/leaving and 1 concurrent clerks put/get's
+// 测试线性一致性：group join/leave + 1 个并发 clerk put/get
 func TestOneConcurrentClerkUnreliable5A(t *testing.T) {
 	concurrentClerk(t, 1, false, "Test (5A): one concurrent clerk unreliable ...")
 }
 
-// Test linearizability with groups joining/leaving and many concurrent clerks put/get's
+// 测试线性一致性：group join/leave + 多个并发 clerk put/get
 func TestManyConcurrentClerkUnreliable5A(t *testing.T) {
 	const NCLNT = 10
 	concurrentClerk(t, NCLNT, false, "Test (5A): many concurrent clerks unreliable...")
 }
 
-// Test if join/leave complete even if shardgrp is down for a while, but
-// don't complete while the shardgrp is down.
+// 测试：如果 shardgrp 暂时宕机，join/leave 最终应能完成，
+// 但在 shardgrp 宕机期间不应完成。
 func TestJoinLeave5B(t *testing.T) {
 	const NSEC = 2
 
@@ -507,10 +503,10 @@ func TestJoinLeave5B(t *testing.T) {
 	case err := <-ch:
 		ts.Fatalf("Join finished %v", err)
 	case <-time.After(1 * NSEC):
-		// Give Join some time to try to join
+		// 给 Join 一些时间去尝试执行
 	}
 
-	// Now join should be able to finish
+	// 现在 Join 应该可以完成
 	ts.Group(gid1).StartServers()
 
 	select {
@@ -537,10 +533,10 @@ func TestJoinLeave5B(t *testing.T) {
 	case <-ch:
 		ts.Fatalf("Leave finished")
 	case <-time.After(NSEC * time.Second):
-		// Give give some time to try to join
+		// 给 Leave 一些时间去尝试执行
 	}
 
-	// Now leave should be able to finish
+	// 现在 Leave 应该可以完成
 	ts.Group(gid2).StartServers()
 
 	select {
@@ -556,7 +552,7 @@ func TestJoinLeave5B(t *testing.T) {
 	}
 }
 
-// test recovery of partitioned controllers
+// 测试被分区控制器的恢复
 func TestRecoverCtrler5B(t *testing.T) {
 	const (
 		NPARTITION = 5
@@ -574,7 +570,7 @@ func TestRecoverCtrler5B(t *testing.T) {
 	}
 }
 
-// Test concurrent ctrlers fighting for leadership reliable
+// 测试并发控制器争夺领导权（可靠网络）
 func TestConcurrentReliable5C(t *testing.T) {
 	ts := MakeTestLeases(t, "Test (5C): Concurrent ctrlers ...", true)
 	defer ts.Cleanup()
@@ -584,7 +580,7 @@ func TestConcurrentReliable5C(t *testing.T) {
 	ts.concurCtrler(ck, ka, va)
 }
 
-// Test concurrent ctrlers fighting for leadership unreliable
+// 测试并发控制器争夺领导权（不可靠网络）
 func TestAcquireLockConcurrentUnreliable5C(t *testing.T) {
 	ts := MakeTestLeases(t, "Test (5C): Concurrent ctrlers ...", false)
 	defer ts.Cleanup()
@@ -594,8 +590,8 @@ func TestAcquireLockConcurrentUnreliable5C(t *testing.T) {
 	ts.concurCtrler(ck, ka, va)
 }
 
-// Test if old leader is fenced off when reconnecting while it is in
-// the middle of a Join.
+// 测试旧 leader 在 Join 过程中断线后重连时，
+// 是否会被正确隔离（fenced off）。
 func TestPartitionControllerJoin5C(t *testing.T) {
 	const (
 		NSLEEP = 2
@@ -623,19 +619,18 @@ func TestPartitionControllerJoin5C(t *testing.T) {
 		ch <- rpc.OK
 	}()
 
-	// sleep for a while to get the chance for the controller to get
-	// stuck in join, because gid is down
+	// 先休眠一段时间，让控制器有机会因 gid 宕机而卡在 join 过程中
 	time.Sleep(1 * time.Second)
 
-	// partition sck
+	// 将 sck 与网络分区
 	clnt.DisconnectAll()
 
-	// wait a while before restarting shardgrp `ngid`
+	// 在重启 shardgrp `ngid` 之前先等待一会儿
 	time.Sleep(NSEC * time.Second)
 
 	ts.Group(ngid).StartServers()
 
-	// start new controller to supersede partitioned one,
+	// 启动新控制器，取代被分区的旧控制器
 	sck0 := ts.makeShardCtrler()
 	sck0.InitController()
 
@@ -644,10 +639,10 @@ func TestPartitionControllerJoin5C(t *testing.T) {
 		t.Fatalf("Didn't recover gid %d", ngid)
 	}
 
-	// reconnect old controller, which shouldn't finish ChangeConfigTo
+	// 重新连接旧控制器；它不应完成 ChangeConfigTo
 	clnt.ConnectAll()
 
-	// wait for old controller to finish/exit
+	// 等待旧控制器结束/退出
 	<-ch
 
 	time.Sleep(1 * time.Second)
@@ -657,8 +652,8 @@ func TestPartitionControllerJoin5C(t *testing.T) {
 	}
 }
 
-// Make a leader controller loses its leadership during join/leave and
-// test if the next controller recovers correctly.
+// 让 leader 控制器在 join/leave 期间失去领导权，
+// 并测试下一个控制器能否正确恢复。
 func partitionRecovery5C(t *testing.T, reliable bool, npart, nclnt int) {
 	const NSEC = 60
 	ts := MakeTestLeases(t, "Test (5C): controllers with leased leadership ...", reliable)
