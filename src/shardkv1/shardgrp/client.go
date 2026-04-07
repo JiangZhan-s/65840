@@ -52,12 +52,14 @@ func (ck *Clerk) Get(key string) (string, rpc.Tversion, rpc.Err) {
 	}
 }
 
-func (ck *Clerk) Put(key string, value string, version rpc.Tversion) rpc.Err {
+func (ck *Clerk) Put(key string, value string, version rpc.Tversion, clientId int64, commandId int64) rpc.Err {
 	// 在这里补充代码
 	args := rpc.PutArgs{
-		Key:     key,
-		Value:   value,
-		Version: version,
+		Key:       key,
+		Value:     value,
+		Version:   version,
+		ClientId:  clientId,
+		CommandId: commandId,
 	}
 	for i := 1; ; i++ {
 		reply := rpc.PutReply{}

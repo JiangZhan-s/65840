@@ -41,6 +41,14 @@ type KVServer struct {
 	numm map[shardcfg.Tshid]shardcfg.Tnum
 
 	freezeData map[shardcfg.Tshid][]byte // 数据缓存
+
+	clientCommand map[int64]int64
+}
+
+// 用于迁移
+type ShardState struct {
+	KVData   map[string]ValueVersion
+	Sessions map[int64]int64
 }
 
 func (kv *KVServer) DoOp(req any) any {
@@ -103,18 +111,32 @@ func (kv *KVServer) applyInstall(args shardrpc.InstallShardArgs) (reply shardrpc
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 	shard, state, num := args.Shard, args.State, args.Num
-	// 同一个配置编号的 Install 必须幂等；重复执行会回滚后续写入。
+	// 同一个配置编号的Install必须幂等；重复执行会回滚后续写入。
 	if num <= kv.numm[shard] {
 		reply.Err = rpc.OK
 		return
 	}
 	// 安装数据
 	freezeData := kv.decodeFreezeData(state)
-	for key, value := range freezeData {
+
+	for key, value := range freezeData.KVData {
 		if shardcfg.Key2Shard(key) == shard {
 			kv.data[key] = value
 		}
 	}
+
+	for clientId, newCtx := range freezeData.Sessions {
+		if currentCtx, ok := kv.clientCommand[clientId]; ok {
+			// 如果本地已经有这个客户端的记录，取Seq较大的那一个
+			if newCtx > currentCtx {
+				kv.clientCommand[clientId] = newCtx
+			}
+		} else {
+			// 本地没有，直接存入
+			kv.clientCommand[clientId] = newCtx
+		}
+	}
+
 	// 状态改变
 	kv.owned[shard] = true
 	kv.frozen[shard] = false
@@ -127,19 +149,33 @@ func (kv *KVServer) applyInstall(args shardrpc.InstallShardArgs) (reply shardrpc
 }
 
 func (kv *KVServer) getFreezeData(shard shardcfg.Tshid) []byte {
-	// 先看看当前数据库缓存有没有
-	_, ok := kv.freezeData[shard]
-	if !ok {
-		// 没有就创建一份
-		freezeData := make(map[string]ValueVersion)
-		for key, value := range kv.data {
-			if shardcfg.Key2Shard(key) == shard {
-				freezeData[key] = value
-			}
-		}
-		kv.freezeData[shard] = kv.encodeFreezeData(freezeData)
+	if data, ok := kv.freezeData[shard]; ok {
+		return data
 	}
-	return kv.freezeData[shard]
+
+	// 提取KV数据
+	kvData := make(map[string]ValueVersion)
+	for k, v := range kv.data {
+		if shardcfg.Key2Shard(k) == shard {
+			kvData[k] = v
+		}
+	}
+
+	// 提取去重表
+	sessions := make(map[int64]int64)
+	for id, ctx := range kv.clientCommand {
+		sessions[id] = ctx
+	}
+
+	// 封装并编码
+	state := ShardState{
+		KVData:   kvData,
+		Sessions: sessions,
+	}
+
+	encoded := kv.encodeFreezeData(state)
+	kv.freezeData[shard] = encoded
+	return encoded
 }
 
 func (kv *KVServer) applyFreeze(args shardrpc.FreezeShardArgs) (reply shardrpc.FreezeShardReply) {
@@ -181,7 +217,7 @@ func (kv *KVServer) applyFreeze(args shardrpc.FreezeShardArgs) (reply shardrpc.F
 	return
 }
 
-func (kv *KVServer) encodeFreezeData(freezeData map[string]ValueVersion) []byte {
+func (kv *KVServer) encodeFreezeData(freezeData ShardState) []byte {
 	w := new(bytes.Buffer)
 	e := labgob.NewEncoder(w)
 	if err := e.Encode(freezeData); err != nil {
@@ -190,10 +226,10 @@ func (kv *KVServer) encodeFreezeData(freezeData map[string]ValueVersion) []byte 
 	return w.Bytes()
 }
 
-func (kv *KVServer) decodeFreezeData(data []byte) map[string]ValueVersion {
+func (kv *KVServer) decodeFreezeData(data []byte) ShardState {
 	r := bytes.NewBuffer(data)
 	d := labgob.NewDecoder(r)
-	var freezeData map[string]ValueVersion
+	var freezeData ShardState
 	if err := d.Decode(&freezeData); err != nil {
 		log.Fatal("Decode FreezeData failed")
 	}
@@ -235,6 +271,7 @@ func (kv *KVServer) applyPut(args rpc.PutArgs) rpc.PutReply {
 			return rpc.PutReply{Err: rpc.ErrVersion}
 		}
 		kv.data[args.Key] = ValueVersion{Value: args.Value, Version: 1}
+		kv.clientCommand[args.ClientId] = args.CommandId
 		return rpc.PutReply{Err: rpc.OK}
 	}
 
@@ -243,6 +280,8 @@ func (kv *KVServer) applyPut(args rpc.PutArgs) rpc.PutReply {
 	}
 
 	kv.data[args.Key] = ValueVersion{Value: args.Value, Version: args.Version + 1}
+
+	kv.clientCommand[args.ClientId] = args.CommandId
 	return rpc.PutReply{Err: rpc.OK}
 }
 
@@ -255,6 +294,7 @@ func (kv *KVServer) Snapshot() []byte {
 	e.Encode(kv.frozen)
 	e.Encode(kv.numm)
 	e.Encode(kv.freezeData)
+	e.Encode(kv.clientCommand)
 	return w.Bytes()
 }
 
@@ -277,6 +317,9 @@ func (kv *KVServer) Restore(data []byte) {
 	if d.Decode(&kv.freezeData) != nil {
 		log.Fatalf("%v couldn't decode freezeData", kv.me)
 	}
+	if d.Decode(&kv.clientCommand) != nil {
+		log.Fatalf("%v couldn't decode clientCommand", kv.me)
+	}
 }
 
 func (kv *KVServer) Get(args *rpc.GetArgs, reply *rpc.GetReply) {
@@ -292,6 +335,15 @@ func (kv *KVServer) Get(args *rpc.GetArgs, reply *rpc.GetReply) {
 
 func (kv *KVServer) Put(args *rpc.PutArgs, reply *rpc.PutReply) {
 	// 在这里补充代码
+
+	kv.mu.Lock()
+	if kv.clientCommand[args.ClientId] >= args.CommandId {
+		kv.mu.Unlock()
+		reply.Err = rpc.OK
+		return
+	}
+	kv.mu.Unlock()
+
 	err, rep := kv.rsm.Submit(*args)
 	if err == rpc.ErrWrongLeader || rep == nil {
 		reply.Err = rpc.ErrWrongLeader
@@ -301,8 +353,8 @@ func (kv *KVServer) Put(args *rpc.PutArgs, reply *rpc.PutReply) {
 	*reply = submitReply
 }
 
-// 冻结指定 shard（即拒绝该 shard 之后的 Get/Put），
-// 并返回该 shard 中存储的键值数据。
+// 冻结指定shard（即拒绝该shard之后的Get/Put），
+// 并返回该shard中存储的键值数据。
 func (kv *KVServer) FreezeShard(args *shardrpc.FreezeShardArgs, reply *shardrpc.FreezeShardReply) {
 	// 在这里补充代码
 	err, rep := kv.rsm.Submit(*args)
@@ -314,7 +366,7 @@ func (kv *KVServer) FreezeShard(args *shardrpc.FreezeShardArgs, reply *shardrpc.
 	*reply = submitReply
 }
 
-// 为指定 shard 安装给定状态。
+// 为指定shard安装给定状态。
 func (kv *KVServer) InstallShard(args *shardrpc.InstallShardArgs, reply *shardrpc.InstallShardReply) {
 	// 在这里补充代码
 	err, rep := kv.rsm.Submit(*args)
@@ -326,7 +378,7 @@ func (kv *KVServer) InstallShard(args *shardrpc.InstallShardArgs, reply *shardrp
 	*reply = submitReply
 }
 
-// 删除指定 shard。
+// 删除指定shard。
 func (kv *KVServer) DeleteShard(args *shardrpc.DeleteShardArgs, reply *shardrpc.DeleteShardReply) {
 	// 在这里补充代码
 	err, rep := kv.rsm.Submit(*args)
@@ -354,16 +406,18 @@ func StartServerShardGrp(servers []*labrpc.ClientEnd, gid tester.Tgid, me int, p
 	labgob.Register(shardrpc.FreezeShardReply{})
 	labgob.Register(shardrpc.InstallShardReply{})
 	labgob.Register(shardrpc.DeleteShardReply{})
+	labgob.Register(ShardState{})
 	labgob.Register(rsm.Op{})
 
 	kv := &KVServer{
-		gid:        gid,
-		me:         me,
-		data:       make(map[string]ValueVersion),
-		owned:      make(map[shardcfg.Tshid]bool),
-		frozen:     make(map[shardcfg.Tshid]bool),
-		numm:       make(map[shardcfg.Tshid]shardcfg.Tnum),
-		freezeData: make(map[shardcfg.Tshid][]byte),
+		gid:           gid,
+		me:            me,
+		data:          make(map[string]ValueVersion),
+		owned:         make(map[shardcfg.Tshid]bool),
+		frozen:        make(map[shardcfg.Tshid]bool),
+		numm:          make(map[shardcfg.Tshid]shardcfg.Tnum),
+		freezeData:    make(map[shardcfg.Tshid][]byte),
+		clientCommand: make(map[int64]int64),
 	}
 	kv.rsm = rsm.MakeRSM(servers, me, persister, maxraftstate, kv)
 

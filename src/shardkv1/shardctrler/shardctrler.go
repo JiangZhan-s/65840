@@ -91,21 +91,18 @@ func (sck *ShardCtrler) ApplyChange(old, new *shardcfg.ShardConfig, shard shardc
 	//接下来进行三个步骤
 
 	state, err := oldClk.FreezeShard(shard, num)
-	for err != rpc.OK {
-		time.Sleep(50 * time.Microsecond)
-		state, err = oldClk.FreezeShard(shard, num)
+	if err != rpc.OK {
+		return err
 	}
 
 	err = newClk.InstallShard(shard, state, num)
-	for err != rpc.OK {
-		time.Sleep(50 * time.Microsecond)
-		err = newClk.InstallShard(shard, state, num)
+	if err != rpc.OK {
+		return err
 	}
 
 	err = oldClk.DeleteShard(shard, num)
-	for err != rpc.OK {
-		time.Sleep(50 * time.Microsecond)
-		err = oldClk.DeleteShard(shard, num)
+	if err != rpc.OK {
+		return err
 	}
 	return rpc.OK
 
@@ -113,33 +110,73 @@ func (sck *ShardCtrler) ApplyChange(old, new *shardcfg.ShardConfig, shard shardc
 
 // tester 调用此方法，要求控制器将配置从当前版本变更为 new。
 // 在配置变更过程中，当前控制器可能会被另一个控制器取代。
+// func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
+// 	// 在这里补充代码。
+// 	// 检查合法性
+// 	for {
+// 		cfg := sck.Query()
+// 		if cfg.Num >= new.Num {
+// 			return
+// 		}
+// 		for shard := range shardcfg.NShards {
+// 			// 对于每一个分片执行变更
+// 			err := sck.ApplyChange(cfg, new, shardcfg.Tshid(shard), new.Num)
+// 			if err == rpc.ErrWrongGroup {
+// 				continue
+// 			}
+// 		}
+// 		err := sck.Put(firstConfig, new.String(), rpc.Tversion(cfg.Num))
+// 		if err == rpc.OK {
+// 			return
+// 		}
+// 		if err == rpc.ErrMaybe || err == rpc.ErrVersion {
+
+// 			curcfg, _, err := sck.Get(firstConfig)
+// 			if err == rpc.OK && shardcfg.FromString(curcfg).Num >= new.Num {
+// 				return
+// 			}
+// 		}
+// 		time.Sleep(100 * time.Millisecond)
+// 	}
+// }
+
 func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
-	// 在这里补充代码。
-	// 检查合法性
 	for {
-		cfg := sck.Query()
-		if cfg.Num >= new.Num {
+		// 获取当前集群公认的最新配置（存储在kvsrv里的）
+		curr := sck.Query()
+		if curr.Num >= new.Num {
 			return
 		}
-		for shard := range shardcfg.NShards {
-			// 对于每一个分片执行变更
-			err := sck.ApplyChange(cfg, new, shardcfg.Tshid(shard), new.Num)
-			if err == rpc.ErrWrongGroup {
+
+		// 只有版本号连续时才处理，确保不跳过中间版本
+
+		allShardsDone := true
+		for shard := 0; shard < shardcfg.NShards; shard++ {
+			// 检查这个分片在目标配置中是否需要移动
+			if curr.Shards[shard] == new.Shards[shard] {
 				continue
 			}
-		}
-		err := sck.Put(firstConfig, new.String(), rpc.Tversion(cfg.Num))
-		if err == rpc.OK {
-			return
-		}
-		if err == rpc.ErrMaybe {
 
-			curcfg, _, err := sck.Get(firstConfig)
-			if err == rpc.OK && shardcfg.FromString(curcfg).Num >= new.Num {
+			// 尝试迁移该分片
+			err := sck.ApplyChange(curr, new, shardcfg.Tshid(shard), new.Num)
+			if err != rpc.OK {
+				// 如果迁移失败（网络问题、服务器挂了），不能跳过
+				// 标记失败，等待下一轮循环重试该分片
+				allShardsDone = false
+				break
+			}
+		}
+
+		// 只有当所有分片都迁移确认成功后，才尝试更新配置版本
+		if allShardsDone {
+			// 使用 Put 的版本号检查功能，防止并发写入冲突
+			err := sck.Put(firstConfig, new.String(), rpc.Tversion(curr.Num))
+			if err == rpc.OK {
 				return
 			}
 		}
-		time.Sleep(50 * time.Millisecond)
+
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 

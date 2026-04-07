@@ -9,6 +9,10 @@ package shardkv
 //
 
 import (
+	"crypto/rand"
+	"math/big"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"6.5840/shardkv1/shardcfg"
@@ -26,14 +30,28 @@ type Clerk struct {
 	sck  *shardctrler.ShardCtrler        // 查找配置的控制器
 	rcks map[tester.Tgid]*shardgrp.Clerk // 组对应的查询客户端--组内客户端(这是个缓存)	gid->clerk
 	// 你需要修改这个结构体。
+	clientId  int64
+	commandId int64
+	mu        sync.Mutex
+}
+
+func nrand() int64 {
+	// 生成一个 [0, 2^62) 之间的随机大整数
+	max := big.NewInt(1)
+	max.Lsh(max, 62)
+
+	n, _ := rand.Int(rand.Reader, max)
+	return n.Int64()
 }
 
 // tester 调用 MakeClerk 并传入一个 shardctrler，
 // 这样客户端就可以调用其 Query 方法。
 func MakeClerk(clnt *tester.Clnt, sck *shardctrler.ShardCtrler) kvtest.IKVClerk {
 	ck := &Clerk{
-		clnt: clnt,
-		sck:  sck,
+		clnt:      clnt,
+		sck:       sck,
+		clientId:  nrand(),
+		commandId: 0,
 	}
 	ck.rcks = make(map[tester.Tgid]*shardgrp.Clerk)
 	// 你需要在这里补充代码。
@@ -43,6 +61,11 @@ func MakeClerk(clnt *tester.Clnt, sck *shardctrler.ShardCtrler) kvtest.IKVClerk 
 func (ck *Clerk) GetClerk(gid tester.Tgid) (*shardgrp.Clerk, bool) {
 	rck, ok := ck.rcks[gid]
 	return rck, ok
+}
+
+func (ck *Clerk) NextCommandId() int64 {
+	atomic.AddInt64(&ck.commandId, 1)
+	return ck.commandId
 }
 
 // 从 shardgrp 读取一个 key。
@@ -57,7 +80,7 @@ func (ck *Clerk) Get(key string) (string, rpc.Tversion, rpc.Err) {
 		// 获取这个分片对应的组、组内的raft服务器们
 		gid, servers, ok := config.GidServers(shard)
 		if !ok || len(servers) == 0 {
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
@@ -78,7 +101,7 @@ func (ck *Clerk) Get(key string) (string, rpc.Tversion, rpc.Err) {
 			// 还得删掉这个gid向服务器组(和客户端)的映射，因为极有可能这个组是刚刚分配的
 			// 这个客户端老掉牙了大叔，虽然好像不删也行
 			delete(ck.rcks, gid)
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		return value, version, err
@@ -94,7 +117,7 @@ func (ck *Clerk) Put(key string, value string, version rpc.Tversion) rpc.Err {
 		config := ck.sck.Query()
 		gid, servers, ok := config.GidServers(shard)
 		if !ok {
-			time.Sleep(50 * time.Microsecond)
+			time.Sleep(100 * time.Microsecond)
 			continue
 		}
 
@@ -105,21 +128,10 @@ func (ck *Clerk) Put(key string, value string, version rpc.Tversion) rpc.Err {
 		}
 
 		// 写！
-		err := rck.Put(key, value, version)
-		if err == rpc.ErrMaybe {
-			// ErrMaybe的情况，可能是之前的Put已经生效了，但客户端还没收到回复，所以再查一次确认一下
-			currentVal, currentVer, err := ck.Get(key)
-			if err == rpc.OK {
-				// 如果服务器版本已经是我预期更新后的版本(version + 1)
-				// 且值也对得上，说明我上一次Put已经生效了
-				if currentVer == version+1 && currentVal == value {
-					return rpc.OK
-				}
-			}
-		}
+		err := rck.Put(key, value, version, ck.clientId, ck.NextCommandId())
 		if err == rpc.ErrWrongGroup {
 			delete(ck.rcks, gid)
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		return err
