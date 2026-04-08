@@ -5,6 +5,8 @@ package shardctrler
 //
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	kvsrv "6.5840/kvsrv1"
@@ -24,6 +26,7 @@ type ShardCtrler struct {
 
 	// 在这里添加你的数据。
 	clerk map[tester.Tgid]*shardgrp.Clerk
+	mu    sync.Mutex
 }
 
 const firstConfig = "firstConfig"
@@ -71,6 +74,8 @@ func (sck *ShardCtrler) InitConfig(cfg *shardcfg.ShardConfig) {
 }
 
 func (sck *ShardCtrler) GetGroupClerk(gid tester.Tgid, servers []string) *shardgrp.Clerk {
+	sck.mu.Lock()
+	defer sck.mu.Unlock()
 	clk, ok := sck.clerk[gid]
 	if !ok {
 		clk = shardgrp.MakeClerk(sck.clnt, servers)
@@ -136,15 +141,22 @@ func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
 
 		sck.Put(nextConfig, new.String(), rpc.Tversion(curr.Num))
 
+		targetConfig := sck.getConfig(nextConfig)
+		if targetConfig == nil || targetConfig.Num <= curr.Num {
+			time.Sleep(100 * time.Millisecond)
+			fmt.Println("歇会")
+			continue
+		}
+
 		allShardsDone := true
 		for shard := 0; shard < shardcfg.NShards; shard++ {
 			// 检查这个分片在目标配置中是否需要移动
-			if curr.Shards[shard] == new.Shards[shard] {
+			if curr.Shards[shard] == targetConfig.Shards[shard] {
 				continue
 			}
 
 			// 尝试迁移该分片
-			err := sck.ApplyChange(curr, new, shardcfg.Tshid(shard), new.Num)
+			err := sck.ApplyChange(curr, targetConfig, shardcfg.Tshid(shard), targetConfig.Num)
 			if err != rpc.OK {
 				// 如果迁移失败（网络问题、服务器挂了），不能跳过
 				// 标记失败，等待下一轮循环重试该分片
@@ -156,9 +168,11 @@ func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
 		// 只有当所有分片都迁移确认成功后，才尝试更新配置版本
 		if allShardsDone {
 			// 使用 Put 的版本号检查功能，防止并发写入冲突
-			err := sck.Put(firstConfig, new.String(), rpc.Tversion(curr.Num))
+			err := sck.Put(firstConfig, targetConfig.String(), rpc.Tversion(curr.Num))
 			if err == rpc.OK {
-				return
+				if targetConfig.Num >= new.Num {
+					return
+				}
 			}
 		}
 
