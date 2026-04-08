@@ -27,6 +27,7 @@ type ShardCtrler struct {
 }
 
 const firstConfig = "firstConfig"
+const nextConfig = "nextConfig"
 
 // 创建一个 ShardCtrler，其状态存储在 kvsrv 中。
 func MakeShardCtrler(clnt *tester.Clnt) *ShardCtrler {
@@ -42,6 +43,20 @@ func MakeShardCtrler(clnt *tester.Clnt) *ShardCtrler {
 // 在 A 部分，这个方法不需要做任何事。
 // 在 B 和 C 部分，这个方法需要实现恢复逻辑。
 func (sck *ShardCtrler) InitController() {
+	for {
+		curr := sck.getConfig(firstConfig)
+		next := sck.getConfig(nextConfig)
+
+		if next == nil {
+			return
+		}
+		// 如果 next 比 curr 新，说明有未完成的任务
+		if curr == nil || next.Num > curr.Num {
+			sck.ChangeConfigTo(next)
+		} else {
+			return
+		}
+	}
 }
 
 // tester 只会调用一次，用于提供第一版配置。
@@ -52,6 +67,7 @@ func (sck *ShardCtrler) InitController() {
 func (sck *ShardCtrler) InitConfig(cfg *shardcfg.ShardConfig) {
 	// 在这里补充代码
 	sck.Put(firstConfig, cfg.String(), 0)
+	sck.Put(nextConfig, cfg.String(), 0)
 }
 
 func (sck *ShardCtrler) GetGroupClerk(gid tester.Tgid, servers []string) *shardgrp.Clerk {
@@ -110,36 +126,6 @@ func (sck *ShardCtrler) ApplyChange(old, new *shardcfg.ShardConfig, shard shardc
 
 // tester 调用此方法，要求控制器将配置从当前版本变更为 new。
 // 在配置变更过程中，当前控制器可能会被另一个控制器取代。
-// func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
-// 	// 在这里补充代码。
-// 	// 检查合法性
-// 	for {
-// 		cfg := sck.Query()
-// 		if cfg.Num >= new.Num {
-// 			return
-// 		}
-// 		for shard := range shardcfg.NShards {
-// 			// 对于每一个分片执行变更
-// 			err := sck.ApplyChange(cfg, new, shardcfg.Tshid(shard), new.Num)
-// 			if err == rpc.ErrWrongGroup {
-// 				continue
-// 			}
-// 		}
-// 		err := sck.Put(firstConfig, new.String(), rpc.Tversion(cfg.Num))
-// 		if err == rpc.OK {
-// 			return
-// 		}
-// 		if err == rpc.ErrMaybe || err == rpc.ErrVersion {
-
-// 			curcfg, _, err := sck.Get(firstConfig)
-// 			if err == rpc.OK && shardcfg.FromString(curcfg).Num >= new.Num {
-// 				return
-// 			}
-// 		}
-// 		time.Sleep(100 * time.Millisecond)
-// 	}
-// }
-
 func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
 	for {
 		// 获取当前集群公认的最新配置（存储在kvsrv里的）
@@ -148,7 +134,7 @@ func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
 			return
 		}
 
-		// 只有版本号连续时才处理，确保不跳过中间版本
+		sck.Put(nextConfig, new.String(), rpc.Tversion(curr.Num))
 
 		allShardsDone := true
 		for shard := 0; shard < shardcfg.NShards; shard++ {
@@ -189,4 +175,12 @@ func (sck *ShardCtrler) Query() *shardcfg.ShardConfig {
 	}
 	config := shardcfg.FromString(value)
 	return config
+}
+
+func (sck *ShardCtrler) getConfig(key string) *shardcfg.ShardConfig {
+	val, _, ok := sck.Get(key)
+	if ok != rpc.OK {
+		return nil
+	}
+	return shardcfg.FromString(val)
 }
