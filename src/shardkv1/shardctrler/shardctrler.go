@@ -5,7 +5,6 @@ package shardctrler
 //
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -144,7 +143,6 @@ func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
 		targetConfig := sck.getConfig(nextConfig)
 		if targetConfig == nil || targetConfig.Num <= curr.Num {
 			time.Sleep(100 * time.Millisecond)
-			fmt.Println("歇会")
 			continue
 		}
 
