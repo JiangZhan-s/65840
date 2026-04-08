@@ -49,13 +49,17 @@ func (sck *ShardCtrler) InitController() {
 		curr := sck.getConfig(firstConfig)
 		next := sck.getConfig(nextConfig)
 
-		if next == nil {
-			return
+		if next == nil || curr == nil {
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
-		// 如果 next 比 curr 新，说明有未完成的任务
-		if curr == nil || next.Num > curr.Num {
-			sck.ChangeConfigTo(next)
+
+		// 如果 next 比 curr 新，说明上次变更中途宕机了，需要继续完成
+		if next.Num > curr.Num {
+			// 直接复用变更逻辑，而不是开启递归调用
+			sck.processMigration(curr, next)
 		} else {
+			// 两者相等，说明目前没有待处理任务
 			return
 		}
 	}
@@ -128,53 +132,59 @@ func (sck *ShardCtrler) ApplyChange(old, new *shardcfg.ShardConfig, shard shardc
 
 }
 
+func (sck *ShardCtrler) processMigration(curr *shardcfg.ShardConfig, target *shardcfg.ShardConfig) bool {
+	allShardsDone := true
+	for shard := 0; shard < shardcfg.NShards; shard++ {
+		if curr.Shards[shard] == target.Shards[shard] {
+			continue
+		}
+
+		// 执行 冻结 -> 安装 -> 删除
+		err := sck.ApplyChange(curr, target, shardcfg.Tshid(shard), target.Num)
+		if err != rpc.OK {
+			allShardsDone = false
+			break
+		}
+	}
+
+	if allShardsDone {
+		// 关键点：使用 curr.Num 作为版本校验，确保只有在 curr 没变的情况下才推向 target
+		err := sck.Put(firstConfig, target.String(), rpc.Tversion(curr.Num))
+		return err == rpc.OK
+	}
+	return false
+}
+
 // tester 调用此方法，要求控制器将配置从当前版本变更为 new。
 // 在配置变更过程中，当前控制器可能会被另一个控制器取代。
 func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
 	for {
-		// 获取当前集群公认的最新配置（存储在kvsrv里的）
-		curr := sck.Query()
+		curr := sck.Query() // 获取当前公认已完成的配置 (firstConfig)
 		if curr.Num >= new.Num {
 			return
 		}
 
-		sck.Put(nextConfig, new.String(), rpc.Tversion(curr.Num))
+		// 1. 先尝试把“愿望”写入 nextConfig
+		// 这里需要注意：如果 nextConfig 已经被别人占了且比 new 还要新，我们要根据情况处理
+		pendingNext := sck.getConfig(nextConfig)
 
-		targetConfig := sck.getConfig(nextConfig)
-		if targetConfig == nil || targetConfig.Num <= curr.Num {
-			time.Sleep(100 * time.Millisecond)
-			continue
+		if pendingNext.Num < new.Num {
+			// 尝试更新 nextConfig。注意这里的版本校验逻辑要看你 kvsrv 的具体实现
+			// 假设 Put 的第三个参数是“基于哪个版本进行更新”
+			sck.Put(nextConfig, new.String(), rpc.Tversion(pendingNext.Num))
 		}
 
-		allShardsDone := true
-		for shard := 0; shard < shardcfg.NShards; shard++ {
-			// 检查这个分片在目标配置中是否需要移动
-			if curr.Shards[shard] == targetConfig.Shards[shard] {
-				continue
-			}
+		// 2. 重新获取最新的 next，因为可能被别人改了
+		target := sck.getConfig(nextConfig)
 
-			// 尝试迁移该分片
-			err := sck.ApplyChange(curr, targetConfig, shardcfg.Tshid(shard), targetConfig.Num)
-			if err != rpc.OK {
-				// 如果迁移失败（网络问题、服务器挂了），不能跳过
-				// 标记失败，等待下一轮循环重试该分片
-				allShardsDone = false
-				break
+		// 3. 执行迁移
+		if sck.processMigration(curr, target) {
+			if target.Num >= new.Num {
+				return
 			}
 		}
 
-		// 只有当所有分片都迁移确认成功后，才尝试更新配置版本
-		if allShardsDone {
-			// 使用 Put 的版本号检查功能，防止并发写入冲突
-			err := sck.Put(firstConfig, targetConfig.String(), rpc.Tversion(curr.Num))
-			if err == rpc.OK {
-				if targetConfig.Num >= new.Num {
-					return
-				}
-			}
-		}
-
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 	}
 }
 
