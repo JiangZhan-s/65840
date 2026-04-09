@@ -96,20 +96,30 @@ func (ck *Clerk) FreezeShard(s shardcfg.Tshid, num shardcfg.Tnum) ([]byte, rpc.E
 		Shard: s,
 		Num:   num,
 	}
+	timeout := time.After(2 * time.Second)
 	for {
 		reply := shardrpc.FreezeShardReply{}
-		ok := ck.Clnt.Call(ck.servers[ck.leader], "KVServer.FreezeShard", &args, &reply)
-		if !ok {
-			ck.leader = (ck.leader + 1) % len(ck.servers)
-			time.Sleep(100 * time.Millisecond)
-			continue
+		done := make(chan bool, 1)
+		go func() {
+			ok := ck.Clnt.Call(ck.servers[ck.leader], "KVServer.FreezeShard", &args, &reply)
+			done <- ok
+		}()
+		select {
+		case ok := <-done:
+			if !ok {
+				ck.leader = (ck.leader + 1) % len(ck.servers)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			if reply.Err == rpc.ErrWrongLeader {
+				ck.leader = (ck.leader + 1) % len(ck.servers)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return reply.State, reply.Err
+		case <-timeout:
+			return nil, rpc.ErrWrongGroup
 		}
-		if reply.Err == rpc.ErrWrongLeader {
-			ck.leader = (ck.leader + 1) % len(ck.servers)
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		return reply.State, reply.Err
 	}
 }
 
@@ -120,21 +130,31 @@ func (ck *Clerk) InstallShard(s shardcfg.Tshid, state []byte, num shardcfg.Tnum)
 		State: state,
 		Num:   num,
 	}
-	for {
-		reply := shardrpc.InstallShardReply{}
-		ok := ck.Clnt.Call(ck.servers[ck.leader], "KVServer.InstallShard", &args, &reply)
-		if !ok {
-			ck.leader = (ck.leader + 1) % len(ck.servers)
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		if reply.Err == rpc.ErrWrongLeader {
-			ck.leader = (ck.leader + 1) % len(ck.servers)
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
+	timeout := time.After(2 * time.Second)
 
-		return reply.Err
+	for {
+		done := make(chan bool, 1)
+		reply := shardrpc.InstallShardReply{}
+		go func() {
+			ok := ck.Clnt.Call(ck.servers[ck.leader], "KVServer.InstallShard", &args, &reply)
+			done <- ok
+		}()
+		select {
+		case ok := <-done:
+			if !ok {
+				ck.leader = (ck.leader + 1) % len(ck.servers)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			if reply.Err == rpc.ErrWrongLeader {
+				ck.leader = (ck.leader + 1) % len(ck.servers)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return reply.Err
+		case <-timeout:
+			return rpc.ErrWrongGroup
+		}
 	}
 }
 
@@ -144,19 +164,29 @@ func (ck *Clerk) DeleteShard(s shardcfg.Tshid, num shardcfg.Tnum) rpc.Err {
 		Shard: s,
 		Num:   num,
 	}
+	timeout := time.After(2 * time.Second)
 	for {
 		reply := shardrpc.DeleteShardReply{}
-		ok := ck.Clnt.Call(ck.servers[ck.leader], "KVServer.DeleteShard", &args, &reply)
-		if !ok {
-			ck.leader = (ck.leader + 1) % len(ck.servers)
-			time.Sleep(100 * time.Millisecond)
-			continue
+		done := make(chan bool, 1)
+		go func() {
+			ok := ck.Clnt.Call(ck.servers[ck.leader], "KVServer.DeleteShard", &args, &reply)
+			done <- ok
+		}()
+		select {
+		case ok := <-done:
+			if !ok {
+				ck.leader = (ck.leader + 1) % len(ck.servers)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			if reply.Err == rpc.ErrWrongLeader {
+				ck.leader = (ck.leader + 1) % len(ck.servers)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return reply.Err
+		case <-timeout:
+			return rpc.ErrWrongGroup
 		}
-		if reply.Err == rpc.ErrWrongLeader {
-			ck.leader = (ck.leader + 1) % len(ck.servers)
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		return reply.Err
 	}
 }

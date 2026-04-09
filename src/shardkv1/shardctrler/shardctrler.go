@@ -148,7 +148,6 @@ func (sck *ShardCtrler) processMigration(curr *shardcfg.ShardConfig, target *sha
 	}
 
 	if allShardsDone {
-		// 关键点：使用 curr.Num 作为版本校验，确保只有在 curr 没变的情况下才推向 target
 		err := sck.Put(firstConfig, target.String(), rpc.Tversion(curr.Num))
 		return err == rpc.OK
 	}
@@ -159,25 +158,23 @@ func (sck *ShardCtrler) processMigration(curr *shardcfg.ShardConfig, target *sha
 // 在配置变更过程中，当前控制器可能会被另一个控制器取代。
 func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
 	for {
-		curr := sck.Query() // 获取当前公认已完成的配置 (firstConfig)
+		curr := sck.Query() // 获取当前公认已完成的配置
 		if curr.Num >= new.Num {
 			return
 		}
 
-		// 1. 先尝试把“愿望”写入 nextConfig
-		// 这里需要注意：如果 nextConfig 已经被别人占了且比 new 还要新，我们要根据情况处理
+		// 先尝试把“愿望”写入nextConfig
 		pendingNext := sck.getConfig(nextConfig)
 
 		if pendingNext.Num < new.Num {
-			// 尝试更新 nextConfig。注意这里的版本校验逻辑要看你 kvsrv 的具体实现
-			// 假设 Put 的第三个参数是“基于哪个版本进行更新”
+			// 尝试更新nextConfig
 			sck.Put(nextConfig, new.String(), rpc.Tversion(pendingNext.Num))
 		}
 
-		// 2. 重新获取最新的 next，因为可能被别人改了
+		// 重新获取最新的next，因为可能被别人改了
 		target := sck.getConfig(nextConfig)
 
-		// 3. 执行迁移
+		// 执行迁移
 		if sck.processMigration(curr, target) {
 			if target.Num >= new.Num {
 				return
