@@ -6,6 +6,7 @@ package shardctrler
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	kvsrv "6.5840/kvsrv1"
@@ -31,6 +32,14 @@ type ShardCtrler struct {
 const firstConfig = "firstConfig"
 const nextConfig = "nextConfig"
 
+func (sck *ShardCtrler) Kill() {
+	atomic.StoreInt32(&sck.killed, 1)
+}
+
+func (sck *ShardCtrler) iskilled() bool {
+	return atomic.LoadInt32(&sck.killed) == 1
+}
+
 // 创建一个 ShardCtrler，其状态存储在 kvsrv 中。
 func MakeShardCtrler(clnt *tester.Clnt) *ShardCtrler {
 	sck := &ShardCtrler{clnt: clnt}
@@ -45,7 +54,7 @@ func MakeShardCtrler(clnt *tester.Clnt) *ShardCtrler {
 // 在 A 部分，这个方法不需要做任何事。
 // 在 B 和 C 部分，这个方法需要实现恢复逻辑。
 func (sck *ShardCtrler) InitController() {
-	for {
+	for !sck.iskilled() {
 		curr := sck.getConfig(firstConfig)
 		next := sck.getConfig(nextConfig)
 
@@ -157,7 +166,7 @@ func (sck *ShardCtrler) processMigration(curr *shardcfg.ShardConfig, target *sha
 // tester 调用此方法，要求控制器将配置从当前版本变更为 new。
 // 在配置变更过程中，当前控制器可能会被另一个控制器取代。
 func (sck *ShardCtrler) ChangeConfigTo(new *shardcfg.ShardConfig) {
-	for {
+	for !sck.iskilled() {
 		curr := sck.Query() // 获取当前公认已完成的配置
 		if curr.Num >= new.Num {
 			return
