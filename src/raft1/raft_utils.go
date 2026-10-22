@@ -97,7 +97,9 @@ func (rf *Raft) becomeLeader() {
 	rf.state = StateLeader
 	for i := range rf.peers {
 		rf.nextIndex[i] = rf.PhysicalToLogical(len(rf.logs))
-		rf.matchIndex[i] = rf.PhysicalToLogical(0)
+		// 【修改】尚未确认 Follower 已安装本机快照，不能把快照边界当作匹配进度。
+		// 旧代码：rf.matchIndex[i] = rf.PhysicalToLogical(0)
+		rf.matchIndex[i] = 0
 	}
 	// fmt.Println(rf.me, " 成为了leader")
 	rf.HeartBeats()
@@ -168,17 +170,38 @@ func (rf *Raft) AppendEntries(args *AppendEntriesRequest, reply *AppendEntriesRe
 		return
 	}
 	// PrevLogIndex处的Term不匹配，拒绝 args.PrevLogIndex >= 0 &&
-	if args.PrevLogTerm != rf.logs[rf.LogicalToPhysical(args.PrevLogIndex)].Term {
+	// if args.PrevLogTerm != rf.logs[rf.LogicalToPhysical(args.PrevLogIndex)].Term {
+	// 	reply.Success = false
+	// 	reply.ConflictTerm = rf.logs[rf.LogicalToPhysical(args.PrevLogIndex)].Term
+	// 	reply.ConflictIndex = args.PrevLogIndex
+	// 	for i := args.PrevLogIndex - 1; i > rf.snapshotIndex; i-- {
+	// 		if rf.logs[rf.LogicalToPhysical(i)].Term == reply.ConflictTerm {
+	// 			reply.ConflictIndex = i
+	// 		} else {
+	// 			break
+	// 		}
+	// 	}
+	// 	return
+	// }
+	prev := rf.LogicalToPhysical(args.PrevLogIndex)
+	conflictTerm := rf.logs[prev].Term
+
+	if args.PrevLogTerm != conflictTerm {
 		reply.Success = false
-		reply.ConflictTerm = rf.logs[rf.LogicalToPhysical(args.PrevLogIndex)].Term
-		reply.ConflictIndex = args.PrevLogIndex
-		for i := args.PrevLogIndex - 1; i > rf.snapshotIndex; i-- {
-			if rf.logs[rf.LogicalToPhysical(i)].Term == reply.ConflictTerm {
-				reply.ConflictIndex = i
+		reply.ConflictTerm = conflictTerm
+
+		// 在物理下标 [0, prev] 中找第一个 Term >= conflictTerm 的位置。
+		left, right := 0, prev
+		for left < right {
+			mid := left + (right-left)/2
+			if rf.logs[mid].Term < conflictTerm {
+				left = mid + 1
 			} else {
-				break
+				right = mid
 			}
 		}
+
+		reply.ConflictIndex = rf.PhysicalToLogical(left)
 		return
 	}
 
@@ -271,19 +294,29 @@ func (rf *Raft) snapshotToFollower(server int) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	if ok {
-		if rf.state != StateLeader || rf.currentTerm != args.Term {
-			return
-		}
+		// 【修改】先处理更高任期，过期请求的回复也可能携带新的任期。
+		// 旧代码：身份检查原本在任期检查之前。
+		// if rf.state != StateLeader || rf.currentTerm != args.Term {
+		//     return
+		// }
 		// 任期检查
 		if reply.Term > rf.currentTerm {
 			rf.becomeFollower(reply.Term)
 			rf.persist() // RPC回复处理中需要持久化
 			return
 		}
-		rf.nextIndex[server] = args.LastIncludedIndex + 1
-		if rf.matchIndex[server] < args.LastIncludedIndex {
-			rf.matchIndex[server] = args.LastIncludedIndex
+		// 【修改】旧任期的复制结果不能修改当前任期的复制进度。
+		if rf.state != StateLeader || rf.currentTerm != args.Term {
+			return
 		}
+		// 【修改】快照回复可能晚于日志回复，两个进度都只能向前推进。
+		// 旧代码：
+		// rf.nextIndex[server] = args.LastIncludedIndex + 1
+		// if rf.matchIndex[server] < args.LastIncludedIndex {
+		//     rf.matchIndex[server] = args.LastIncludedIndex
+		// }
+		rf.matchIndex[server] = max(rf.matchIndex[server], args.LastIncludedIndex)
+		rf.nextIndex[server] = max(rf.nextIndex[server], rf.matchIndex[server]+1)
 	}
 }
 
@@ -298,21 +331,34 @@ func (rf *Raft) entriesToFollower(server int) {
 		// 发送日志成功处理
 		rf.mu.Lock()
 		defer rf.mu.Unlock()
-		// 身份检查
-		if rf.state != StateLeader || rf.currentTerm != args.Term {
-			return
-		}
+		// 【修改】先检查更高任期，再判断回复是否属于当前 Leader 任期。
+		// 旧代码：
+		// if rf.state != StateLeader || rf.currentTerm != args.Term {
+		//     return
+		// }
 		// 任期检查
 		if reply.Term > rf.currentTerm {
 			rf.becomeFollower(reply.Term)
 			rf.persist() // RPC回复处理中需要持久化
 			return
 		}
+		// 【修改】更高任期处理完后，才过滤身份或任期已经过期的回复。
+		if rf.state != StateLeader || rf.currentTerm != args.Term {
+			return
+		}
 		// 失败处理
 		if !reply.Success {
+			// 【修改】已确认匹配的位置无需回退；探测位置已变化的失败回复也过期了。
+			if args.PrevLogIndex <= rf.matchIndex[server] ||
+				args.PrevLogIndex+1 != rf.nextIndex[server] {
+				return
+			}
+			// 【修改】先计算候选位置，最后统一限制在已确认匹配的位置之后。
+			conflictNext := reply.ConflictIndex
 			if reply.ConflictTerm == -1 {
 				// 任期没冲突，说明Follower的日志太短了，从follower的结尾开始发送
-				rf.nextIndex[server] = reply.ConflictIndex
+				// 旧代码：rf.nextIndex[server] = reply.ConflictIndex
+				conflictNext = reply.ConflictIndex
 			} else {
 				// 任期也冲突了，看看自己之前有没有这个任期
 				lastIndexWithTerm := -1
@@ -324,19 +370,27 @@ func (rf *Raft) entriesToFollower(server int) {
 				}
 				if lastIndexWithTerm == -1 {
 					// Leader没有这个任期，直接从conflictIndex开始，因为这个任期都要被覆盖
-					rf.nextIndex[server] = reply.ConflictIndex
+					// 旧代码：rf.nextIndex[server] = reply.ConflictIndex
+					conflictNext = reply.ConflictIndex
 				} else {
 					// Leader有这个任期，从该任期的下一个开始对其试试
-					rf.nextIndex[server] = lastIndexWithTerm + 1
+					// 旧代码：rf.nextIndex[server] = lastIndexWithTerm + 1
+					conflictNext = lastIndexWithTerm + 1
 				}
 			}
+			// 【修改】不能回退到已确认匹配的日志以内。
+			rf.nextIndex[server] = max(rf.matchIndex[server]+1, conflictNext)
 		} else {
 			// 成功处理
 			newMatchIndex := args.PrevLogIndex + len(args.Entries)
-			if newMatchIndex > rf.matchIndex[server] {
-				rf.matchIndex[server] = newMatchIndex
-				rf.nextIndex[server] = rf.matchIndex[server] + 1
-			}
+			// 【修改】并行成功回复乱序到达时，进度只能增加。
+			// 旧代码：
+			// if newMatchIndex > rf.matchIndex[server] {
+			//     rf.matchIndex[server] = newMatchIndex
+			//     rf.nextIndex[server] = rf.matchIndex[server] + 1
+			// }
+			rf.matchIndex[server] = max(rf.matchIndex[server], newMatchIndex)
+			rf.nextIndex[server] = max(rf.nextIndex[server], rf.matchIndex[server]+1)
 
 			// 更新commitIndex
 			// 复制一份当前的matchIndex并排序
